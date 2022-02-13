@@ -4,6 +4,7 @@ This pipeline leverages functions from the nipype library to process both single
 
 
 Nipype: https://nipype.readthedocs.io/en/latest/
+
 Command line tool dependencies:
 
 * FSL: https://fsl.fmrib.ox.ac.uk/fsl/fslwiki
