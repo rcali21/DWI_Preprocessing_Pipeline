@@ -10,19 +10,46 @@ import fnmatch
 import sys
 
 
-#TO-DO Add subject ID flags
-
-
+# TO-DO Add subject ID flags
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--pe1", "-pe1", help="dMRI file using first phase-encoding direction.", required=False)
-parser.add_argument("--pe2", "-pe2", help="dMRI file using second phase-encoding direction.", required=False)
+parser.add_argument(
+    "--pe1",
+    "-pe1",
+    help="dMRI file using first phase-encoding direction.",
+    required=False,
+)
+parser.add_argument(
+    "--pe2",
+    "-pe2",
+    help="dMRI file using second phase-encoding direction.",
+    required=False,
+)
 parser.add_argument("--subject", "-s", help="Path to subject directory.", required=True)
-parser.add_argument("--config", "-c", help="Path to text eddy-style config file containing phase-encoding information. If not provided, default will be sourced from image header. IMPORTANT: PHILLIPS Scanners will require their own config and index files for eddy/topup.", required=False)
-parser.add_argument("--index", "-i", help="Path to eddy-style index file containing phase-encoding information. If not provided, default will be sourced from image header. IMPORTANT: PHILLIPS Scanners will require their own config and index files for eddy/topup.", required=False)
-parser.add_argument("--single_pe", help="Run diffusion pipeline on a single phase-encoding direction acquired dMRI sequence.", required=False) # TODO: Add this step!!!!!
-parser.add_argument("--derivatives", "-d", help="Path to derivatives directory. If not provided, default is sourcedata directory.", required=False)
+parser.add_argument(
+    "--config",
+    "-c",
+    help="Path to text eddy-style config file containing phase-encoding information. If not provided, default will be sourced from image header. IMPORTANT: PHILLIPS Scanners will require their own config and index files for eddy/topup.",
+    required=False,
+)
+parser.add_argument(
+    "--index",
+    "-i",
+    help="Path to eddy-style index file containing phase-encoding information. If not provided, default will be sourced from image header. IMPORTANT: PHILLIPS Scanners will require their own config and index files for eddy/topup.",
+    required=False,
+)
+parser.add_argument(
+    "--single_pe",
+    help="Run diffusion pipeline on a single phase-encoding direction acquired dMRI sequence.",
+    required=False,
+)  # TODO: Add this step!!!!!
+parser.add_argument(
+    "--derivatives",
+    "-d",
+    help="Path to derivatives directory. If not provided, default is sourcedata directory.",
+    required=False,
+)
 args = parser.parse_args()
 
 
@@ -31,17 +58,14 @@ PE_1 = args.pe1
 PE_2 = args.pe2
 
 os.chdir(path)
-sys.stdout = open('dwi_log.txt', 'w')
+sys.stdout = open("dwi_log.txt", "w")
 
 # acqp_path = '/autofs/space/nicc_001/users/rcali/test_environment/acqp.txt'
 # index_path = '/autofs/space/nicc_001/users/rcali/test_environment/index.txt'
 
 
-
-
-
-pe_dir_1 = ['AP', 'RL', 'SI']
-pe_dir_2 = ['PA', 'LR', 'IS']
+pe_dir_1 = ["AP", "RL", "SI"]
+pe_dir_2 = ["PA", "LR", "IS"]
 
 data_dir = ["orig", "mrtrix_files", "dtifit"]
 
@@ -62,22 +86,29 @@ def organize_dir(dir_name):
             + " directory found, moving all related outputs to this directory..."
         )
 
+
 def mrzip(in_file):
-    if in_file.endswith('.nii'):
+    if in_file.endswith(".nii"):
         mrconvert = mrt3.MRConvert()
         mrconvert.inputs.in_file = in_file
-        mrconvert.inputs.out_file = in_file + '.gz'
-        mrconvert.inputs.args = '-force'
+        mrconvert.inputs.out_file = in_file + ".gz"
+        mrconvert.inputs.args = "-force"
         mrconvert.run()
         os.remove(in_file)
         return
+
 
 def throw_error(output_file):
     if os.path.exists(output_file):
         print(output_file + " generated, continuing processing pipeline...")
     else:
-        print("Error generating [" + output_file + "], check last step for potential issues.")
+        print(
+            "Error generating ["
+            + output_file
+            + "], check last step for potential issues."
+        )
         sys.exit()
+
 
 organize_dir(data_dir[0])
 
@@ -90,10 +121,9 @@ file_list = []
 for file in files(path):
     if file.endswith(tuple(ext)):
         file_list.append(file)
-        
+
         shutil.copy(file, orig_dir)
 
-        
 
 print("-----File Manifest-----")
 print("")
@@ -106,24 +136,20 @@ direction_1_string = Path(PE_1).stem.split(".")[0]
 direction_2_string = Path(PE_2).stem.split(".")[0]
 
 
-
 dir_1_list = []
 dir_2_list = []
-
 
 
 for file in files(path):
     for pe_dir in pe_dir_1:
         if pe_dir[:] in file:
-            dir_1_list.append(file)  
+            dir_1_list.append(file)
 
-                
 
 for file2 in files(path):
     for pe_dir in pe_dir_2:
         if pe_dir[:] in file2:
             dir_2_list.append(file2)
-
 
 
 # if filename contains 'AP', 'RL', 'SI'....
@@ -155,12 +181,9 @@ for t in dir_2_list:
         os.rename(t, "dwi_PE_2.json")
 
 
-
-
 for qq in os.listdir(path):
-    if qq.endswith('.nii'):
+    if qq.endswith(".nii"):
         mrzip(qq)
-
 
 
 # mrconvert = mrt3.MRConvert()
@@ -183,7 +206,6 @@ mrconvert.inputs.args = (
 mrconvert.run()
 
 throw_error("dwi_PE_1.mif")
-
 
 
 mrconvert = mrt3.MRConvert()
@@ -246,7 +268,6 @@ throw_error("b0_vols.mif")
 # preproc.run()
 
 
-
 preproc = mrt3.DWIPreproc()
 preproc.inputs.in_file = "denoised_merged_dwi.mif"
 preproc.inputs.rpe_options = "all"
@@ -258,8 +279,6 @@ preproc.inputs.args = "-nthreads 5 -eddyqc_all eddy -force"
 preproc.inputs.export_grad_mrtrix = True
 preproc.inputs.pe_dir = "LR"
 preproc.run()
-
-
 
 
 throw_error("preproc.mif")
@@ -339,10 +358,21 @@ mrtrix_dir = os.path.join(path, "mrtrix_files")
 
 organize_dir(data_dir[1])
 
-eddy_dir = os.path.join(path, 'eddy')
+eddy_dir = os.path.join(path, "eddy")
 trix_files = [".mif", "grad.b"]
 qc_files = ["residuals.nii.gz", "noise.nii.gz"]
-dti_fit_files = ['dtifit_FA.nii.gz', 'dtifit_L1.nii.gz', 'dtifit_L2.nii.gz', 'dtifit_L3.nii.gz', 'dtifit_MD.nii.gz', 'dtifit_MO.nii.gz', 'dtifit_S0.nii.gz', 'dtifit_V1.nii.gz', 'dtifit_V2.nii.gz', 'dtifit_V3.nii.gz']
+dti_fit_files = [
+    "dtifit_FA.nii.gz",
+    "dtifit_L1.nii.gz",
+    "dtifit_L2.nii.gz",
+    "dtifit_L3.nii.gz",
+    "dtifit_MD.nii.gz",
+    "dtifit_MO.nii.gz",
+    "dtifit_S0.nii.gz",
+    "dtifit_V1.nii.gz",
+    "dtifit_V2.nii.gz",
+    "dtifit_V3.nii.gz",
+]
 for s in files(path):
     if s.endswith(tuple(trix_files[:])):
         b = os.path.join(path, s)
@@ -355,7 +385,7 @@ for s in files(path):
 
 for dti_fit_file in dti_fit_files:
     throw_error(dti_fit_file)
-        
+
 dti_fit_dir = os.path.join(path, "dtifit")
 
 organize_dir(data_dir[2])
@@ -367,12 +397,8 @@ for o in files(path):
         os.replace(q, y)
 
 for w in files(path):
-    if w.startswith('dwi_PE'):
+    if w.startswith("dwi_PE"):
         os.remove(w)
-
-
-
-
 
 
 sys.stdout.close()
