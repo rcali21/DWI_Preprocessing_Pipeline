@@ -1,11 +1,9 @@
 import nipype.interfaces.mrtrix3 as mrt3
 import nipype.interfaces.fsl as fsl
 import os
-import matplotlib.pyplot as plt
 from pathlib import Path
 import shutil
 import argparse
-import fnmatch
 import sys
 
 
@@ -22,7 +20,7 @@ parser.add_argument(
     "--pe2",
     "-pe2",
     help="dMRI file using second phase-encoding direction.",
-    required=False,
+    d=False,
 )
 parser.add_argument("--subject", "-s", help="Path to subject directory.", required=True)
 parser.add_argument(
@@ -53,15 +51,6 @@ args = parser.parse_args()
 path = args.subject
 PE_1 = args.pe1
 PE_2 = args.pe2
-# if args.single_pe:
-#     single_pe_file = args.single_pe
-# elif args.pe1 and args.pe2:
-#     print('pe 2 if statement works')
-# else:
-#     print(args)
-
-
-
 
 os.chdir(path)
 # Initiate logging
@@ -136,32 +125,8 @@ def file_check(output_file):
 
 #------------------------Initiate reverse phase-encoded data processing pipeline---------------------------
 def reverse_pe_wf(direction_1, direction_2):
-
-    mrconvert = mrt3.MRConvert()
-    mrconvert.inputs.in_file = direction_1
-    mrconvert.inputs.out_file = "dwi_PE_1.mif"
-    mrconvert.inputs.args = (
-        "-fslgrad dwi_PE_1.bvec dwi_PE_1.bval -json_import dwi_PE_1.json -force"
-    )
-    mrconvert.run()
-
-    file_check("dwi_PE_1.mif")
-
-
-    mrconvert = mrt3.MRConvert()
-    mrconvert.inputs.in_file = direction_2
-    mrconvert.inputs.out_file = "dwi_PE_2.mif"
-    mrconvert.inputs.args = (
-        "-fslgrad dwi_PE_2.bvec dwi_PE_2.bval -json_import dwi_PE_2.json -force"
-    )
-    mrconvert.run()
-
-
-
-    file_check("dwi_PE_2.mif")
-
     mrcat = mrt3.MRCat()
-    mrcat.inputs.in_files = ["dwi_PE_1.mif", "dwi_PE_2.mif"]
+    mrcat.inputs.in_files = [direction_1, direction_2]
     mrcat.inputs.out_file = "dwi_merged_PE.mif"
     mrcat.inputs.args = "-force"
     mrcat.run()
@@ -210,11 +175,32 @@ def reverse_pe_wf(direction_1, direction_2):
     preproc.run()
 
 
+def auto_table_import(dwi_1, dwi_2)
 
-def import_tables(config, index):
+    mrconvert = mrt3.MRConvert()
+    mrconvert.inputs.in_file = dwi_1
+    mrconvert.inputs.out_file = "dwi_PE_1.mif"
+    mrconvert.inputs.args = (
+        "-fslgrad dwi_PE_1.bvec dwi_PE_1.bval -json_import dwi_PE_1.json -force"
+    )
+    mrconvert.run()
+
+    file_check("dwi_PE_1.mif")
+
+    mrconvert = mrt3.MRConvert()
+    mrconvert.inputs.in_file = dwi_2
+    mrconvert.inputs.out_file = "dwi_PE_2.mif"
+    mrconvert.inputs.args = (
+        "-fslgrad dwi_PE_2.bvec dwi_PE_2.bval -json_import dwi_PE_2.json -force"
+    )
+    mrconvert.run()
+
+    file_check("dwi_PE_2.mif")
+
+def manual_table_import(config, index):
     
     mrconvert = mrt3.MRConvert()
-    mrconvert.inputs.in_file = 'dwi_Pe_1.nii.gz'
+    mrconvert.inputs.in_file = 'dwi_PE_1.nii.gz'
     mrconvert.inputs.out_file = "dwi_PE_1.mif"
     mrconvert.inputs.args = (
         "-fslgrad dwi_PE_2.bvec dwi_PE_2.bval import_pe_eddy" + config + index + "-force"
@@ -225,60 +211,59 @@ def import_tables(config, index):
 
 
     mrconvert = mrt3.MRConvert()
-    mrconvert.inputs.in_file = 'dwi_Pe_1.nii.gz'
+    mrconvert.inputs.in_file = 'dwi_PE_2.nii.gz'
     mrconvert.inputs.out_file = "dwi_PE_2.mif"
     mrconvert.inputs.args = (
         "-fslgrad dwi_PE_2.bvec dwi_PE_2.bval import_pe_eddy" + config + index + "-force"
     )
     mrconvert.run()
 
-
-
     file_check("dwi_PE_2.mif")
 
 
-
-if args.config and args.index:
+# User-specified PE tables for embedding. Accounts for MRtrix not being able to # generate pe tables automatically (Mainly an issue with Phillips data)
+if args.config and args.index and args.PE_1 and args.PE_2:
     config = args.config
     index = args.index
-    import_tables(config, index)
+    manual_table_import(config, index)
+else:
+    auto_table_import('dwi_PE_1.nii.gz', 'dwi_PE_2.nii.gz')
     
 
-
-#-------------------------Intitiate single phase-encoding direction processing stream----------------------------------
-
-def single_pe_wf(subject_dir, in_file):
+def single_pe_step_1(subject_dir, in_file):
     for xx in os.listdir(subject_dir):
         if ext[0] in xx:
-            mrconvert = mrt3.MRConvert()
-            mrconvert.inputs.in_file = in_file
-            mrconvert.inputs.out_file = "dwi_PE_1.mif"
-            mrconvert.inputs.args = (
-            "-fslgrad dwi_PE_1.bvec dwi_PE_1.bval -json_import dwi_PE_1.json -force"
-            )
-            mrconvert.run()
-            
-            dwidenoise = mrt3.DWIDenoise()
-            dwidenoise.inputs.in_file = "dwi_PE_1.mif"
-            dwidenoise.inputs.out_file = "denoise_dwi.mif"
-            dwidenoise.inputs.noise = "noise.mif"
-            dwidenoise.inputs.args = "-extent 5 -force"
-            dwidenoise.run()
+            if args.config and args.index:
+                config = args.config
+                index = args.index    
 
-            degibbs = mrt3.MRDeGibbs()
-            degibbs.inputs_in_file = 'denoise_dwi.mif'
-            degibbs.inputs_out_file = 'denoise_degib_dwi.mif'
-            degibbs.inputs_args = '-axes 0,1 -maxW 3 -minW 1 -nshifts 20'
+                mrconvert = mrt3.MRConvert()
+                mrconvert.inputs.in_file = in_file
+                mrconvert.inputs.out_file = "dwi_PE_1.mif"
+                mrconvert.inputs.args = (
+            "-fslgrad dwi_PE_2.bvec dwi_PE_2.bval import_pe_eddy" + config + index + "-force"
+                )
+                mrconvert.run()
 
+            else: 
+                mrconvert = mrt3.MRConvert()
+                mrconvert.inputs.in_file = in_file
+                mrconvert.inputs.out_file = "dwi_PE_1.mif"
+                mrconvert.inputs.args = (
+                    "-fslgrad dwi_PE_1.bvec dwi_PE_1.bval -json_import dwi_PE_1.json -force"
+                )
+def single_pe_step_2(in_file)
+    dwidenoise = mrt3.DWIDenoise()
+    dwidenoise.inputs.in_file = in_file
+    dwidenoise.inputs.out_file = "denoise_dwi.mif"
+    dwidenoise.inputs.noise = "noise.mif"
+    dwidenoise.inputs.args = "-extent 5 -force"
+    dwidenoise.run()
 
-# if single_pe_file.endswith(ext[1]):
-#     print('Found unzipped, single phase-encoded image [ ' + single_pe_file + ' ], compressing image...')
-#     mrzip(single_pe_file)
-# elif single_pe_file.endswith(ext[0]):
-#     print('Found zipped, single phase-encoded image [ ' + single_pe_file + ' ], proceeding with single phase-encoding processing pipeline...')
-
-# single_pe_wf(path, single_pe_file)
-
+    degibbs = mrt3.MRDeGibbs()
+    degibbs.inputs_in_file = 'denoise_dwi.mif'
+    degibbs.inputs_out_file = 'denoise_degib_dwi.mif'
+    degibbs.inputs_args = '-axes 0,1 -maxW 3 -minW 1 -nshifts 20'
 
 def mif_to_nifti(mif_file_list):
     
@@ -346,6 +331,22 @@ def calc_residuals(in_file):
     maths.inputs.args = "-sub noise.nii.gz"
     maths.inputs.out_file = "residuals.nii.gz" 
     maths.run()
+
+
+#---------------Initiate single PE workflow--------------
+if args.single_pe:
+    single_pe_file = args.single_pe
+
+    if single_pe_file.endswith(ext[1]):
+        print('Found unzipped, single phase-encoded image [ ' + single_pe_file + ' ], compressing image...')
+        mrzip(single_pe_file)
+    elif single_pe_file.endswith(ext[0]):
+        print('Found zipped, single phase-encoded image [ ' + single_pe_file + ' ], proceeding with single phase-encoding processing pipeline...')
+
+    single_pe_step_1(path, single_pe_file)
+    single_pe_step_2("dwi_PE_1.mif")
+
+
 
 #denoise/degibb/mask/eddy/mask/dwigradcheck
 
@@ -454,6 +455,20 @@ for o in files(path):
 for w in files(path):
     if w.startswith('dwi_PE'):
         os.remove(w)
+
+
+def move_files(path_to_files, dest):
+    for aa in os.listdir(path_to_files):
+        if aa not in tuple(file_list[:]):
+            shutil.move(aa, dest)
+
+if args.derivatives:
+    deriv_dir = args.derivatives
+    move_files(path, deriv_dir)
+
+
+
+
 
 # sys.stdout.close()
 
