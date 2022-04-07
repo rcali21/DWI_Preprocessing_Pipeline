@@ -16,4 +16,3 @@ Command line tool dependencies:
 ### Important: ###
 Some of the nipype Mrtrix functions (MRCat, etc.) are awaiting push to main branch so they will have to be manually implemented until they can be pulled from the nipype repo. Alternatively, you can source the miniconda environment provided in the repo.
 
-This is a test
